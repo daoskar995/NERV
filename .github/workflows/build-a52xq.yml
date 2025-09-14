@@ -1,11 +1,7 @@
-name: Build ProjectNERV A52 5G
+name: Build ProjectNerv A52 5G
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - 'paradigm'
 
 jobs:
   build:
@@ -18,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: 'recursive'
 
@@ -44,19 +40,19 @@ jobs:
           DEBIAN_FRONTEND=noninteractive sudo apt install -yq \
             p7zip-full jq attr ccache clang ffmpeg golang \
             libbrotli-dev libgtest-dev libprotobuf-dev libunwind-dev libpcre2-dev \
-            libzstd-dev linux-modules-extra-$(uname -r) lld jq protobuf-compiler pcre2-utils webp \
-            curl xxd patchelf flex bison libarchive-tools build-essential python3.12-venv device-tree-compiler
+            libzstd-dev linux-modules-extra-$(uname -r) lld protobuf-compiler webp \
+            curl xxd patchelf flex bison libarchive-tools build-essential pcre2-utils
           sudo modprobe erofs f2fs
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          echo -n "${{ secrets.PLATFORM_KEY_PK8 }}" | base64 --decode > security/platform.pk8
-          echo -n "${{ secrets.PLATFORM_KEY_PEM }}" | base64 --decode > security/platform.x509.pem
+          echo -n "${{ secrets.PLATFORM_KEY_PK8 }}" | base64 --decode > security/extremerom_platform.pk8
+          echo -n "${{ secrets.PLATFORM_KEY_PEM }}" | base64 --decode > security/extremerom_platform.x509.pem
 
-      - name: Set up JDK 11
-        uses: actions/setup-java@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '21'
           cache: 'gradle'
 
       - name: Build dependencies
@@ -67,37 +63,39 @@ jobs:
       - name: Download source firmware
         run: |
           source ./buildenv.sh ${{ matrix.target }}
-          ./scripts/download_fw.sh --ignore-target
+          ./scripts/download_fw.sh --force --ignore-target
 
       - name: Extract source firmware
         run: |
           source ./buildenv.sh ${{ matrix.target }}
-          ./scripts/extract_fw.sh --ignore-target
+          ./scripts/extract_fw.sh --force --ignore-target
 
       - name: Download target firmware
         run: |
           source ./buildenv.sh ${{ matrix.target }}
-          ./scripts/download_fw.sh --ignore-source
+          ./scripts/download_fw.sh --force --ignore-source
 
       - name: Extract target firmware
         run: |
           source ./buildenv.sh ${{ matrix.target }}
-          ./scripts/extract_fw.sh --ignore-source
+          ./scripts/extract_fw.sh --force --ignore-source
 
       - name: Build ROM
         run: |
           source ./buildenv.sh ${{ matrix.target }}
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] && \
-              [[ "${{ github.ref }}" == "refs/heads/paradigm" ]]; then
-              ./scripts/make_rom.sh
-          else
-              ./scripts/make_rom.sh --no-rom-zip
-          fi
+          ./scripts/make_rom.sh --force
 
       - name: Upload to GoFile
-        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/paradigm'
         run: |
           ZIP_FILE=$(find out -maxdepth 1 -type f -name "*.zip" | head -n 1)
+
           RESPONSE=$(curl -s -F "file=@$ZIP_FILE" -F "token=${{ secrets.GOFILE_TOKEN }}" -F "folderId=${{ secrets.GOFILE_FOLDER_ID }}" "https://upload-eu-par.gofile.io/uploadFile")
-          echo "Download link:"
+
+          echo "Uploaded successfully! Download link:"
           echo "$RESPONSE" | jq -r '.data.downloadPage'
+
+          echo "MD5:"
+          md5sum "$ZIP_FILE"
+
+          echo "SHA256:"
+          sha256sum "$ZIP_FILE"
