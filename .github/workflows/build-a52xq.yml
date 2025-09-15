@@ -1,4 +1,4 @@
-name: Build ProjectNerv A52 5G
+name: Build NERV A52 5G
 
 on:
   workflow_dispatch:
