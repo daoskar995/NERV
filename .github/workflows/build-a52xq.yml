@@ -83,12 +83,13 @@ jobs:
       - name: Build ROM
         run: |
           source ./buildenv.sh ${{ matrix.target }}
-          ./scripts/make_rom.sh --force --no-rom-zip
+          ./scripts/make_rom.sh --force
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: NERV-build
           path: |
+            out/*.zip
             out/**/*.img
-            out/**/*.zip
+          if-no-files-found: ignore
