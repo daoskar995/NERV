@@ -83,14 +83,42 @@ jobs:
       - name: Build ROM
         run: |
           source ./buildenv.sh ${{ matrix.target }}
-          ./scripts/make_rom.sh --force || true
+          ./scripts/make_rom.sh --force
 
+      # === NEW: Upload to GitHub Artifacts ===
       - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: NERV-build
           path: |
-            out/*.zip
+            out/**/*.zip
             out/**/*.img
           if-no-files-found: ignore
+
+      # === OPTIONAL: Upload to GoFile ===
+      - name: Upload to GoFile
+        if: env.GOFILE_TOKEN != '' && env.GOFILE_FOLDER_ID != ''
+        env:
+          GOFILE_TOKEN: ${{ secrets.GOFILE_TOKEN }}
+          GOFILE_FOLDER_ID: ${{ secrets.GOFILE_FOLDER_ID }}
+        run: |
+          ZIP_FILE=$(find out -maxdepth 1 -type f -name "*.zip" | head -n 1)
+
+          if [ -f "$ZIP_FILE" ]; then
+            RESPONSE=$(curl -s -F "file=@$ZIP_FILE" \
+                             -F "token=$GOFILE_TOKEN" \
+                             -F "folderId=$GOFILE_FOLDER_ID" \
+                             "https://upload.gofile.io/uploadFile")
+
+            echo "Uploaded successfully! Download link:"
+            echo "$RESPONSE" | jq -r '.data.downloadPage'
+
+            echo "MD5:"
+            md5sum "$ZIP_FILE"
+
+            echo "SHA256:"
+            sha256sum "$ZIP_FILE"
+          else
+            echo "No ROM ZIP found to upload."
+          fi
